@@ -7,8 +7,8 @@ import locale
 import math
 import traceback
 from optparse import OptionParser
-
 locale.setlocale(locale.LC_ALL, 'en_US')
+script = sys.path[0] + "/login.sh"
 
 def _assert(exp, err):
     if not exp:
@@ -92,8 +92,11 @@ class SSHGO:
                 _assert(line_level <= tree_level
                         or line_level == tree_level + 1, 'invalid indent,line:' + str(line_number))
             tree_level = line_level
-
-            new_node = {'level':tree_level,'expanded':expand,'line_number':line_number,'line':line_con,'sub_lines':[]}
+            node_infos_arr = re.split(r'\s+'， line_con.strip())
+            node_host = node_infos_arr[0] if len(node_infos_arr) == 3 else line_con
+            node_user = node_infos_arr[1] if len(node_infos_arr) == 3 else ''
+            node_pwd = node_infos_arr[1] if len(node_infos_arr) == 3 else ''
+            new_node = {'level':tree_level,'expanded':expand,'line_number':line_number,'line':line_con,'n_host':node_host,'n_user':node_user','n_pwd':node_pwd,'sub_lines':[]}
             nodes_pool.append(new_node)
             parent = find_parent_line(new_node)
             parent['sub_lines'].append(new_node)
@@ -277,11 +280,16 @@ class SSHGO:
             node['expanded'] = not node['expanded']
         else:
             self.restore_screen()
-            ssh = 'ssh'
-            if os.popen('which zssh 2> /dev/null').read().strip() != '':
-                ssh = 'zssh'
-            cmd = node['line'].split('#')[0]
-            os.execvp(ssh, [ssh] + re.split(r'[ ]+', cmd))
+            node_host = node['n_host']
+            node_user = node['n_user']
+            node_pwd = node['n_pwd']
+            exe_args = [script, node_host, node_user, node_pwd]
+            os.execvp(script, exe_args)
+            # ssh = 'ssh'
+            # if os.popen('which zssh 2> /dev/null').read().strip() != '':
+            #     ssh = 'zssh'
+            # cmd = node['line'].split('#')[0]
+            # os.execvp(ssh, [ssh] + re.split(r'[ ]+', cmd))
 
     def render_screen(self):
         # clear screen
