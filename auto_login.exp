@@ -1,7 +1,81 @@
 #!/usr/bin/expect -f
-# set timeout -1
+# 设置set timeout -1
 
-# 
-trap{
-  set rows
+# 设置登录窗口的自适应
+trap {
+  set rows [stty rows]
+  set cols [stty columns]
+} WINCH
+
+# 接受命令行的入参
+set timeout 30
+set host [lindex $argv 0]
+set user [lindex $argv 1]
+set password [lindex $argv 2]
+set RealyHost [lindex $argv 3]
+set RelayUser [lindex $argv 4]
+set token [lindex $argv 4]
+
+# 设置是否存在跳板机以及是否存在统一入口令牌从而设置登录远程机器的remoteUser和工作目录workUser
+if { $user == "GateDoor" } {
+  set remoteUser $RelayUser
+  set workUser [lindex $argv 2]
+} else {
+  set remoteUser $use
 }
+
+# 登录跳板机
+catch {spawn ssh $RelayUser@$RelayHost}
+
+# 根据跳板机判断下一步操作
+expect {
+    # 一般首次登录需要输入token，同时基于终端提示进行下一步操作
+    "*Password:*" {
+              send "$host\r"
+              expect {  
+                      "*please input your host*" {
+                            send "$host\r"
+                      }
+                      "*ad_relay*" {
+                            send "$host\r"
+                      }
+                       "*]$*" {
+                            send "$host\r"
+                      }
+              }
+    }
+    # 非首次登录的情况判断
+    "*Connecting to*" {
+              send "exit\r"
+              expect {
+                  "*please input your host*" {
+                            send "$host\r"
+                      }
+                      "*ad_relay*" {
+                            send "$host\r"
+                      }
+              }
+    }
+
+    # 如果有存在免密登录的情况
+    "*please input your host*" { send "$host\r" }
+    "*ad_relay*" { send "$host\r" }
+}
+
+if { $user == "GateDoor" } {
+        if { $workUser != $RelayUser } {
+              # 如果发现不是本人的登录目录，则进行切换
+              # send "sudo su $workUser\r"
+              send "sudo -u $workUser -iH\r"
+              # send "cd /home/$workUser\r"
+        }
+} else {
+        expect "*password:*" { send "$password\r" }
+}
+
+# 统一设置登录后的编码
+send "export LANG=en_US.UTF-8;export LC_ALL=en_US.UTF-8;export LC_CTYPE=en_US.UTF-8\r"
+
+# 切换到手动输入的模式
+interact
+
